@@ -16,17 +16,11 @@ from sqlalchemy import Column, String, Numeric, DateTime, create_engine, func
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
 
-import logging.handlers
-LOG_FILE = os.getenv("LOG_FILE", "")
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO"),
     format='{"ts":"%(asctime)s","level":"%(levelname)s","service":"api-transacoes","msg":"%(message)s"}',
 )
 log = logging.getLogger("api-transacoes")
-if LOG_FILE:
-    fh = logging.FileHandler(LOG_FILE)
-    fh.setFormatter(logging.Formatter('{"ts":"%(asctime)s","level":"%(levelname)s","service":"api-transacoes","msg":"%(message)s"}'))
-    log.addHandler(fh)
 
 DB_URL = os.getenv(
     "DB_URL",
