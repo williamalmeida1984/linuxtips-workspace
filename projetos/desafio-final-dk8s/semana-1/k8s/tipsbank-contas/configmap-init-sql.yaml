@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-init
+  namespace: tipsbank-contas
+data:
+  init.sql: |
+$(cat sql/init.sql | sed 's/^/    /')

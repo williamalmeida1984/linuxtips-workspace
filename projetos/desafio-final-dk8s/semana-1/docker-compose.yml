@@ -95,7 +95,7 @@ services:
       auditoria:
         condition: service_started
     ports:
-      - "8080:8080"
+      - "9090:8080"
 
 volumes:
   pgdata:
