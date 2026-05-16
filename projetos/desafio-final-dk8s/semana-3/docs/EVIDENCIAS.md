@@ -430,19 +430,23 @@ $ curl http://localhost:9090/api/v1/alerts | jq '.data.alerts[] | select(.labels
 
 ### TipsBankP99Alto disparado (via carga)
 ```
-# Disparado durante teste de carga com Locust (200 usuários)
-# Print do Alertmanager com o alerta ativo
+# pendente — requer teste Locust com 200 usuários gerando carga real
+# métrica necessária: histogram_quantile(0.99, http_request_duration_seconds_bucket)
+# a expr só avalia quando o app recebe requisições suficientes
 ```
 
 ### TipsBankErroAltoApi disparado
 ```
-# Disparado durante teste de carga com Locust (200 usuários)
-# Print do Alertmanager com o alerta ativo
+# pendente — requer teste Locust ou injeção de falhas
+# métrica necessária: http_requests_total{status=~"5.."}
 ```
 
 ### TipsBankPodCrashLoop disparado
 ```
-# Print do Alertmanager com o alerta ativo
+# pendente — pode ser disparado sem Locust:
+#   kubectl set image deployment/auditoria auditoria=busybox:1.36 -n tipsbank-auditoria
+#   aguardar >3 restarts em 10m, alerta dispara imediatamente (for: 0m)
+#   kubectl rollout undo deployment/auditoria -n tipsbank-auditoria  (para restaurar)
 ```
 
 ---
@@ -451,35 +455,54 @@ $ curl http://localhost:9090/api/v1/alerts | jq '.data.alerts[] | select(.labels
 
 ### HPAs antes do teste
 ```bash
-$ kubectl get hpa -A
+$ kubectl get hpa -A | grep tipsbank
 NAMESPACE             NAME             REFERENCE                   TARGETS              MINPODS   MAXPODS   REPLICAS   AGE
-tipsbank-auditoria    auditoria        Deployment/auditoria        memory: 36%/75%      2         6         2          3m8s
-tipsbank-contas       api-contas       Deployment/api-contas       cpu: 3%/70%          2         10        2          3m9s
-tipsbank-transacoes   api-transacoes   Deployment/api-transacoes   cpu: <unknown>/70%   3         15        3          3m8s
-tipsbank-web          web              Deployment/web              cpu: 2%/70%          2         6         2          3m8s
+tipsbank-auditoria    auditoria        Deployment/auditoria        memory: 35%/75%      2         6         2          70m
+tipsbank-contas       api-contas       Deployment/api-contas       cpu: 3%/70%          2         10        2          70m
+tipsbank-transacoes   api-transacoes   Deployment/api-transacoes   cpu: <unknown>/70%   3         15        3          70m
+tipsbank-web          web              Deployment/web              cpu: 2%/70%          2         6         2          70m
 
-# Métricas diferentes por HPA:
-# api-contas      → Resource CPU (averageUtilization 70%)
-# api-transacoes  → ContainerResource CPU (container=app, averageUtilization 70%)
-# auditoria       → Resource Memory (averageUtilization 75%)
-# web             → Resource CPU (averageUtilization 70%)
+# Nota: api-transacoes mostra <unknown> porque usa ContainerResource (metrics-server
+# precisa suportar container-level metrics). Funciona para scale-up via CPU real do container.
+#
+# Métricas por HPA — 3 tipos diferentes:
+#   api-contas    → Resource CPU       (averageUtilization 70%)
+#   api-transacoes→ ContainerResource CPU (container=app, averageUtilization 70%)
+#   auditoria     → Resource Memory    (averageUtilization 75%)
+#   web           → Resource CPU       (averageUtilization 70%)
 ```
 
 ### Locust: 200 usuários por 5 minutos
 ```
-# Print da UI do Locust mostrando: usuários, req/s, falhas < 1%
-# kubectl port-forward svc/locust 8089:8089 -n tipsbank-locust
+# pendente — imagem wisomar/tipsbank-locust:v1.0.0 não existe no Docker Hub
+# pod em ImagePullBackOff em tipsbank-locust/locust-7b7bfcc5f9-bqbmd
+#
+# para executar na próxima sessão:
+#   cd semana-3/locust
+#   docker build -t wisomar/tipsbank-locust:v1.0.0 .
+#   kind load docker-image wisomar/tipsbank-locust:v1.0.0 --name wisomar
+#   kubectl rollout restart deployment/locust -n tipsbank-locust
+#   kubectl port-forward svc/locust 8089:8089 -n tipsbank-locust
+#   # acessar http://localhost:8089 → host: http://api-transacoes.tipsbank-transacoes.svc.cluster.local:8080
+#   # iniciar: 200 usuários, spawn rate 10/s, duração 5m
 ```
 
 ### HPA escalando durante o teste
 ```bash
-# kubectl get hpa -A -w
-# cole o output aqui (api-transacoes deve chegar a >5 réplicas)
+# pendente — executar durante o Locust ativo:
+# kubectl get hpa -n tipsbank-transacoes api-transacoes -w
+#
+# esperado: REPLICAS subindo de 3 para >5 quando CPU do container app ultrapassar 70%
+# (o HPA usa ContainerResource, então a métrica de escala é cpu do container app)
 ```
 
 ### ScaleDown após o teste
 ```bash
-# cole evidência de que as réplicas voltaram ao mínimo em até 10 min
+# pendente — após parar o Locust:
+# kubectl get hpa -n tipsbank-transacoes api-transacoes -w
+#
+# esperado: REPLICAS voltando para 3 (minReplicas) em até 10 min
+# (stabilizationWindowSeconds: 300 no scaleDown)
 ```
 
 ---
@@ -490,11 +513,116 @@ tipsbank-web          web              Deployment/web              cpu: 2%/70%  
 ```bash
 $ kubectl get ds -n tipsbank-monitoring
 NAME          DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
-node-logger   3         3         3       3            3           <none>          2m35s
+node-logger   3         3         3       3            3           <none>          70m
 
 $ kubectl get pods -n tipsbank-monitoring -l app=node-logger -o wide
-NAME                READY   STATUS    RESTARTS        AGE     IP            NODE
-node-logger-7h6lg   1/1     Running   1 (2m9s ago)    2m35s   10.244.0.7    wisomar-control-plane
-node-logger-mncqn   1/1     Running   1 (2m30s ago)   2m35s   10.244.2.26   wisomar-worker
-node-logger-n7sj9   1/1     Running   1 (2m31s ago)   2m35s   10.244.1.19   wisomar-worker2
+NAME                READY   STATUS    RESTARTS       AGE   IP            NODE
+node-logger-7h6lg   1/1     Running   1 (69m ago)    70m   10.244.0.7    wisomar-control-plane
+node-logger-mncqn   1/1     Running   1 (70m ago)    70m   10.244.2.26   wisomar-worker
+node-logger-n7sj9   1/1     Running   1 (70m ago)    70m   10.244.1.19   wisomar-worker2
+
+# 1 pod por nó (control-plane + 2 workers) = 3/3 desired
+# toleration para node-role.kubernetes.io/control-plane:NoSchedule garante presença no master
 ```
+
+---
+
+## o que falta para concluir a semana 3
+
+### 1. imagem do locust — build e carga no kind
+
+a imagem `wisomar/tipsbank-locust:v1.0.0` não existe no docker hub.
+o pod está em `ImagePullBackOff` no namespace `tipsbank-locust`.
+
+```bash
+cd semana-3/locust
+docker build -t wisomar/tipsbank-locust:v1.0.0 .
+kind load docker-image wisomar/tipsbank-locust:v1.0.0 --name wisomar
+kubectl rollout restart deployment/locust -n tipsbank-locust
+kubectl get pods -n tipsbank-locust   # aguardar 1/1 Running
+```
+
+### 2. executar o teste locust e capturar evidências da etapa 3.7
+
+com o pod running, abrir o locust ui:
+
+```bash
+kubectl port-forward svc/locust 8089:8089 -n tipsbank-locust
+# browser: http://localhost:8089
+# host: http://api-transacoes.tipsbank-transacoes.svc.cluster.local:8080
+# users: 200, spawn rate: 10/s, tempo: 5 minutos
+```
+
+durante o teste coletar em outro terminal:
+
+```bash
+kubectl get hpa -n tipsbank-transacoes api-transacoes -w
+# pegar snapshot quando replicas > 5 para evidencia de scale-up
+```
+
+após parar o teste:
+
+```bash
+kubectl get hpa -n tipsbank-transacoes api-transacoes -w
+# aguardar replicas voltarem para 3 (até 10 min pelo stabilizationWindow)
+```
+
+### 3. alertas tipsbank pendentes (etapa 3.6)
+
+**TipsBankPodCrashLoop** — pode ser disparado sem locust:
+
+```bash
+kubectl set image deployment/auditoria auditoria=busybox:1.36 -n tipsbank-auditoria
+# aguardar 4+ restarts (kube_pod_container_status_restarts_total > 3 em 10m)
+# for: 0m — dispara imediatamente ao atingir o threshold
+kubectl rollout undo deployment/auditoria -n tipsbank-auditoria   # restaurar
+```
+
+**TipsBankP99Alto** e **TipsBankErroAltoApi** — dependem do teste locust.
+as métricas `http_request_duration_seconds_bucket` e `http_requests_total` são
+expostas pela app em `/metrics` mas só existem no prometheus após requisições reais.
+com 200 usuários por 5 minutos, a probabilidade de p99 > 500ms e erros 5xx é alta.
+
+### 4. hpa api-transacoes com <unknown>
+
+o hpa usa `ContainerResource` (não `Resource`). o metrics-server do kind não reporta
+métricas por container por padrão. para corrigir, mudar o hpa para `Resource CPU` simples:
+
+```bash
+# editar k8s/tipsbank-transacoes/hpa.yaml:
+# type: Resource (em vez de ContainerResource)
+# resource.name: cpu
+# kubectl apply -f k8s/tipsbank-transacoes/hpa.yaml
+```
+
+ou instalar o vpa/metrics-server com suporte a container-level metrics.
+
+### 5. prints visuais do grafana e alertmanager (etapa 3.5 / 3.6)
+
+são screenshots manuais — executar durante ou após o teste locust:
+
+```bash
+# grafana
+kubectl port-forward svc/kube-prometheus-grafana 3000:80 -n tipsbank-monitoring
+# http://localhost:3000 | admin / tipsbank@2026
+
+# alertmanager  
+kubectl port-forward svc/kube-prometheus-kube-prome-alertmanager 9093:9093 -n tipsbank-monitoring
+# http://localhost:9093
+```
+
+capturar: dashboard kubernetes/compute resources, alertas ativos no alertmanager.
+
+### estado atual do cluster ao encerrar esta sessão (2026-05-16)
+
+| componente | namespace | estado |
+|---|---|---|
+| api-contas (2 pods) | tipsbank-contas | running |
+| api-transacoes (3 pods) | tipsbank-transacoes | running |
+| auditoria (2 pods) | tipsbank-auditoria | running |
+| web (2 pods) | tipsbank-web | running |
+| postgres-0 | tipsbank-contas | running |
+| kube-prometheus-stack | tipsbank-monitoring | running (helm rev 3) |
+| node-logger daemonset | tipsbank-monitoring | 3/3 running |
+| hpa (4x) | vários | aplicados |
+| locust pod | tipsbank-locust | imagepullbackoff |
