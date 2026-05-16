@@ -7,6 +7,24 @@
 
 grafana:
   adminPassword: "tipsbank@2026"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+  sidecar:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
   ingress:
     enabled: true
     ingressClassName: nginx
@@ -20,10 +38,6 @@ grafana:
           - grafana.tipsbank.local
   persistence:
     enabled: false
-  sidecar:
-    dashboards:
-      enabled: true
-      searchNamespace: ALL
 
 prometheus:
   ingress:
@@ -57,6 +71,14 @@ prometheus:
         memory: 2Gi
 
 alertmanager:
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
   ingress:
     enabled: true
     ingressClassName: nginx
@@ -72,8 +94,28 @@ alertmanager:
 nodeExporter:
   enabled: true
 
+# subchart prometheus-node-exporter
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
 kubeStateMetrics:
   enabled: true
+
+# subchart kube-state-metrics
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
 
 prometheusOperator:
   resources:
@@ -83,3 +125,20 @@ prometheusOperator:
     limits:
       cpu: 200m
       memory: 256Mi
+  admissionWebhooks:
+    patch:
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 100m
+          memory: 128Mi
+  prometheusConfigReloader:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 50Mi
+      limits:
+        cpu: 200m
+        memory: 100Mi

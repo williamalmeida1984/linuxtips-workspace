@@ -15,7 +15,10 @@ spec:
       interval: 30s
       rules:
         - alert: TipsBankApiDown
-          expr: up{job=~"api-.*"} == 0
+          expr: |
+            absent(up{job="api-contas"}) or
+            absent(up{job="api-transacoes"}) or
+            absent(up{job="auditoria"})
           for: 2m
           labels:
             severity: critical
