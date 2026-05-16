@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: locust
+  namespace: tipsbank-locust
+  labels:
+    app: locust
+    team: banking
+    env: production
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: locust
+  template:
+    metadata:
+      labels:
+        app: locust
+        team: banking
+        env: production
+    spec:
+      containers:
+        - name: locust
+          image: wisomar/tipsbank-locust:v1.0.0
+          ports:
+            - containerPort: 8089
+              name: web
+          env:
+            - name: LOCUST_HOST
+              value: "http://api-transacoes.tipsbank-transacoes.svc.cluster.local:8080"
+            - name: CONTAS_URL
+              value: "http://api-contas.tipsbank-contas.svc.cluster.local:8080"
+          args:
+            - locust
+            - -f
+            - /locustfile.py
+            - --web-port=8089
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8089
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8089
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3

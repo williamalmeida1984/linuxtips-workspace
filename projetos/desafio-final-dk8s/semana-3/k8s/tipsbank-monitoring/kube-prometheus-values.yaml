@@ -1,0 +1,85 @@
+# Valores para instalação via Helm:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm repo update
+#   helm install kube-prometheus prometheus-community/kube-prometheus-stack \
+#     -n tipsbank-monitoring --create-namespace \
+#     -f kube-prometheus-values.yaml
+
+grafana:
+  adminPassword: "tipsbank@2026"
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: tipsbank-ca-issuer
+    hosts:
+      - grafana.tipsbank.local
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.tipsbank.local
+  persistence:
+    enabled: false
+  sidecar:
+    dashboards:
+      enabled: true
+      searchNamespace: ALL
+
+prometheus:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: tipsbank-ca-issuer
+    hosts:
+      - prometheus.tipsbank.local
+    tls:
+      - secretName: prometheus-tls
+        hosts:
+          - prometheus.tipsbank.local
+  prometheusSpec:
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelector: {}
+    podMonitorNamespaceSelector: {}
+    ruleSelectorNilUsesHelmValues: false
+    ruleSelector: {}
+    ruleNamespaceSelector: {}
+    retention: 15d
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+alertmanager:
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    annotations:
+      cert-manager.io/cluster-issuer: tipsbank-ca-issuer
+    hosts:
+      - alertmanager.tipsbank.local
+    tls:
+      - secretName: alertmanager-tls
+        hosts:
+          - alertmanager.tipsbank.local
+
+nodeExporter:
+  enabled: true
+
+kubeStateMetrics:
+  enabled: true
+
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi

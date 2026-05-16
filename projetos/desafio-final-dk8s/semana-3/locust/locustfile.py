@@ -5,16 +5,23 @@ Simula usuarios criando contas e fazendo transferencias.
 Execucao local:
     locust -f locustfile.py --host http://localhost:8082
 
-Execucao em Kubernetes (como Job/Deployment, ver MANUAL-ALUNO semana 3):
-    env LOCUST_HOST=http://api-transacoes.tipsbank.svc.cluster.local:8080 locust --headless -u 200 -r 20 -t 5m
+Execucao em Kubernetes (Deployment no cluster):
+    LOCUST_HOST=http://api-transacoes.tipsbank-transacoes.svc.cluster.local:8080
+    CONTAS_URL=http://api-contas.tipsbank-contas.svc.cluster.local:8080
 """
+import os
 import random
 import uuid
 from decimal import Decimal
 from locust import HttpUser, task, between, events
-
+import httpx
 
 CONTAS_CRIADAS: list[str] = []
+
+CONTAS_URL = os.getenv(
+    "CONTAS_URL",
+    "http://api-contas.tipsbank-contas.svc.cluster.local:8080",
+)
 
 
 class UsuarioBanco(HttpUser):
@@ -26,19 +33,15 @@ class UsuarioBanco(HttpUser):
         payload = {
             "titular": f"Aluno {uuid.uuid4().hex[:6]}",
             "documento": documento,
+            "senha": "giropops123",
             "saldo_inicial": "10000.00",
         }
-        r = self.client.post(
-            "/contas",
-            json=payload,
-            name="/contas (setup)",
-            catch_response=True,
-        )
-        if r.status_code == 201:
-            CONTAS_CRIADAS.append(r.json()["id"])
-            r.success()
-        else:
-            r.failure(f"falha criando conta: {r.status_code}")
+        try:
+            r = httpx.post(f"{CONTAS_URL}/contas", json=payload, timeout=10)
+            if r.status_code == 201:
+                CONTAS_CRIADAS.append(r.json()["id"])
+        except Exception as e:
+            print(f"Erro ao criar conta: {e}")
 
     @task(3)
     def transferir(self):

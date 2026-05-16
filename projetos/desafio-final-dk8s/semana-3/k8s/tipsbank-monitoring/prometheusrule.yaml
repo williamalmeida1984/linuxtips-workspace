@@ -1,0 +1,65 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: tipsbank-slo-alerts
+  namespace: tipsbank-monitoring
+  labels:
+    app: tipsbank
+    team: banking
+    env: production
+    prometheus: kube-prometheus
+    role: alert-rules
+spec:
+  groups:
+    - name: tipsbank.slo
+      interval: 30s
+      rules:
+        - alert: TipsBankApiDown
+          expr: up{job=~"api-.*"} == 0
+          for: 2m
+          labels:
+            severity: critical
+            team: banking
+          annotations:
+            summary: "API do TipsBank fora do ar"
+            description: "O job {{ $labels.job }} está indisponível há mais de 2 minutos (instância: {{ $labels.instance }})."
+
+        - alert: TipsBankP99Alto
+          expr: |
+            histogram_quantile(0.99,
+              sum(rate(http_request_duration_seconds_bucket{job=~"api-.*"}[5m])) by (le, job)
+            ) > 0.5
+          for: 5m
+          labels:
+            severity: warning
+            team: banking
+          annotations:
+            summary: "Latência p99 acima de 500ms"
+            description: "O job {{ $labels.job }} está com latência p99 de {{ $value | humanizeDuration }}, acima do SLO de 500ms."
+
+        - alert: TipsBankErroAltoApi
+          expr: |
+            sum(rate(http_requests_total{job=~"api-.*", status=~"5.."}[3m])) by (job)
+            /
+            sum(rate(http_requests_total{job=~"api-.*"}[3m])) by (job)
+            > 0.05
+          for: 3m
+          labels:
+            severity: critical
+            team: banking
+          annotations:
+            summary: "Taxa de erro 5xx acima de 5%"
+            description: "O job {{ $labels.job }} está com {{ $value | humanizePercentage }} de erros 5xx nos últimos 3 minutos."
+
+        - alert: TipsBankPodCrashLoop
+          expr: |
+            increase(kube_pod_container_status_restarts_total{
+              namespace=~"tipsbank-.*"
+            }[10m]) > 3
+          for: 0m
+          labels:
+            severity: warning
+            team: banking
+          annotations:
+            summary: "Pod em CrashLoop no TipsBank"
+            description: "O container {{ $labels.container }} no pod {{ $labels.pod }} (ns: {{ $labels.namespace }}) reiniciou {{ $value }} vezes nos últimos 10 minutos."

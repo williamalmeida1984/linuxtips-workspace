@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: api-contas
+  namespace: tipsbank-monitoring
+  labels:
+    app: api-contas
+    team: banking
+    env: production
+spec:
+  namespaceSelector:
+    matchNames:
+      - tipsbank-contas
+  selector:
+    matchLabels:
+      app: api-contas
+  endpoints:
+    - port: "8080"
+      path: /metrics
+      interval: 15s
+      scheme: http

@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: auditoria
+  namespace: tipsbank-monitoring
+  labels:
+    app: auditoria
+    team: banking
+    env: production
+spec:
+  namespaceSelector:
+    matchNames:
+      - tipsbank-auditoria
+  selector:
+    matchLabels:
+      app: auditoria
+  endpoints:
+    - port: "8080"
+      path: /metrics
+      interval: 15s
+      scheme: http
