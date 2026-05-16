@@ -1,0 +1,71 @@
+# Cluster EKS via eksctl — TipsBank Semana 2
+#
+# Pré-requisitos:
+#   aws configure          (credenciais com permissão EKS/EC2/IAM/VPC)
+#   eksctl >= 0.180
+#
+# Criar:
+#   eksctl create cluster -f k8s/eks/cluster.yaml
+#
+# Destruir (economize $$$):
+#   eksctl delete cluster -f k8s/eks/cluster.yaml
+#
+# Após criar, adicione o context nomeado ao kubeconfig:
+#   aws eks update-kubeconfig \
+#     --region us-east-1 \
+#     --name tipsbank \
+#     --alias eks-tipsbank
+
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: tipsbank
+  region: us-east-1
+  version: "1.29"
+  tags:
+    project: tipsbank
+    env: lab
+
+# VPC gerenciada pelo eksctl (cria subnets públicas + privadas em 2 AZs)
+vpc:
+  cidr: 10.0.0.0/16
+  clusterEndpoints:
+    publicAccess: true
+    privateAccess: true
+
+# Grupo de nós gerenciados (Managed Node Group)
+managedNodeGroups:
+  - name: ng-workers
+    instanceType: t3.medium
+    minSize: 2
+    maxSize: 4
+    desiredCapacity: 2
+    volumeSize: 20
+    amiFamily: AmazonLinux2
+    labels:
+      role: worker
+    tags:
+      nodegroup: ng-workers
+    iam:
+      withAddonPolicies:
+        albIngress: true      # para anotações de LB
+        ebs: true             # para StorageClass gp2/gp3
+        efs: true             # para PV NFS/EFS (semana 1)
+
+# Add-ons gerenciados pela AWS
+addons:
+  - name: vpc-cni
+    version: latest
+    configurationValues: |
+      enableNetworkPolicy: "true"
+  - name: coredns
+    version: latest
+  - name: kube-proxy
+    version: latest
+  - name: aws-ebs-csi-driver
+    version: latest
+
+# IAM OIDC provider para ServiceAccounts (IRSA)
+iam:
+  withOIDC: true

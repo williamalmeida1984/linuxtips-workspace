@@ -17,11 +17,12 @@ WORKDIR /app
 COPY --from=builder /packages /packages
 COPY --from=builder /app/main.py /app/main.py
 
+ARG APP_VERSION=v1
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/packages \
     PATH=/packages/bin:$PATH \
-    APP_VERSION=v1
+    APP_VERSION=${APP_VERSION}
 
 EXPOSE 8080
 

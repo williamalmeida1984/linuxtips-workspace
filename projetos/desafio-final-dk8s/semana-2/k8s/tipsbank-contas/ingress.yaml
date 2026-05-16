@@ -1,0 +1,29 @@
+# Ingress para api-contas — host api.tipsbank.local, path /contas/*
+# Rewrite: /contas/contas  → /contas  (strip prefix /contas)
+#          /contas/health/live → /health/live
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-contas
+  namespace: tipsbank-contas
+  annotations:
+    cert-manager.io/cluster-issuer: tipsbank-ca-issuer
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - api.tipsbank.local
+    secretName: tipsbank-api-tls
+  rules:
+  - host: api.tipsbank.local
+    http:
+      paths:
+      - path: /contas(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: api-contas
+            port:
+              number: 8080

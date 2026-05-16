@@ -1,0 +1,92 @@
+# NetworkPolicy zero-trust para o namespace tipsbank-web
+# Modelo: default-deny all + libera apenas o que é estritamente necessário
+
+# 1. Bloqueia todo tráfego de entrada e saída por padrão
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: tipsbank-web
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+# 2. Permite que o Ingress Nginx Controller alcance o pod web na porta 8080
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-controller
+  namespace: tipsbank-web
+spec:
+  podSelector:
+    matchLabels:
+      app: web
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+---
+# 3. Permite egress para o CoreDNS (resolução de nomes inter-namespace)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-dns
+  namespace: tipsbank-web
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+---
+# 4. Permite egress para as 3 APIs (nginx do web é proxy reverso para elas)
+#    Remova este objeto se optar por roteamento via Ingress puro (sem proxy no web)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-apis
+  namespace: tipsbank-web
+spec:
+  podSelector:
+    matchLabels:
+      app: web
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: tipsbank-contas
+    ports:
+    - protocol: TCP
+      port: 8080
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: tipsbank-transacoes
+    ports:
+    - protocol: TCP
+      port: 8080
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: tipsbank-auditoria
+    ports:
+    - protocol: TCP
+      port: 8080

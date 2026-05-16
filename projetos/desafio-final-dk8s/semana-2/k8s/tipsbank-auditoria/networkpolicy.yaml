@@ -1,0 +1,133 @@
+# NetworkPolicy zero-trust para o namespace tipsbank-auditoria
+
+# 1. Default deny all
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: tipsbank-auditoria
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+# 2. Permite ingress do Ingress Nginx Controller → auditoria
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-controller
+  namespace: tipsbank-auditoria
+spec:
+  podSelector:
+    matchLabels:
+      app: auditoria
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+---
+# 3. Permite ingress de api-transacoes (publica eventos de transferência)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-transacoes
+  namespace: tipsbank-auditoria
+spec:
+  podSelector:
+    matchLabels:
+      app: auditoria
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: tipsbank-transacoes
+    ports:
+    - protocol: TCP
+      port: 8080
+---
+# 4. Permite ingress de tipsbank-web (proxy reverso)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-web
+  namespace: tipsbank-auditoria
+spec:
+  podSelector:
+    matchLabels:
+      app: auditoria
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: tipsbank-web
+    ports:
+    - protocol: TCP
+      port: 8080
+---
+# 5. Egress: DNS
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-dns
+  namespace: tipsbank-auditoria
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+---
+# 6. Egress: auditoria → nfs-server (porta NFS 2049)
+#    ipBlock demonstra o requisito do Day-17 — bloqueia serviço de metadata da AWS
+#    Ajuste o CIDR do NFS server para o IP real do StatefulSet/nó NFS
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-nfs
+  namespace: tipsbank-auditoria
+spec:
+  podSelector:
+    matchLabels:
+      app: auditoria
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: tipsbank-auditoria
+      podSelector:
+        matchLabels:
+          app: nfs-server
+    ports:
+    - protocol: TCP
+      port: 2049
+  # ipBlock com except: bloqueia serviço de metadata da AWS (EKS)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 169.254.169.254/32   # AWS IMDSv2 — bloqueado por compliance
+        - 169.254.0.0/16       # Link-local geral
+    ports:
+    - protocol: TCP
+      port: 2049

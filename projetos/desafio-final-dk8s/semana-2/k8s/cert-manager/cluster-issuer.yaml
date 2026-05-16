@@ -1,0 +1,43 @@
+# Instale cert-manager antes de aplicar este arquivo:
+#   helm repo add jetstack https://charts.jetstack.io
+#   helm repo update
+#   helm install cert-manager jetstack/cert-manager \
+#     -n cert-manager --create-namespace \
+#     --set installCRDs=true
+
+# Passo 1: ClusterIssuer self-signed para gerar a CA raiz interna
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: selfsigned-issuer
+spec:
+  selfSigned: {}
+---
+# Passo 2: Certificado raiz (CA) emitido pelo selfsigned-issuer
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: tipsbank-ca
+  namespace: cert-manager
+spec:
+  isCA: true
+  commonName: tipsbank-ca
+  secretName: tipsbank-ca-secret
+  duration: 87600h   # 10 anos
+  renewBefore: 720h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+    group: cert-manager.io
+---
+# Passo 3: ClusterIssuer que emite certificados de serviço usando a CA raiz
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: tipsbank-ca-issuer
+spec:
+  ca:
+    secretName: tipsbank-ca-secret

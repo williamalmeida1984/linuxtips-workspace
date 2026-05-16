@@ -1,0 +1,29 @@
+# Ingress para auditoria — host api.tipsbank.local, path /auditoria/*
+# Rewrite: /auditoria/eventos → /eventos
+#          /auditoria/health/live → /health/live
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: auditoria
+  namespace: tipsbank-auditoria
+  annotations:
+    cert-manager.io/cluster-issuer: tipsbank-ca-issuer
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - api.tipsbank.local
+    secretName: tipsbank-api-auditoria-tls
+  rules:
+  - host: api.tipsbank.local
+    http:
+      paths:
+      - path: /auditoria(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: auditoria
+            port:
+              number: 8080

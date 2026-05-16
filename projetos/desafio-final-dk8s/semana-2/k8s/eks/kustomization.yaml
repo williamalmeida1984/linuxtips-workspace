@@ -1,0 +1,42 @@
+# Overlay Kustomize para o cluster EKS
+# Reutiliza todos os manifests base e aplica patches específicos do EKS
+#
+# Aplicar tudo de uma vez:
+#   kubectl --context eks-tipsbank apply -k k8s/eks/
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Namespaces e workloads (reaproveitados do cluster local)
+  - ../cert-manager/cluster-issuer.yaml
+  - ../tipsbank-web/ingress.yaml
+  - ../tipsbank-web/networkpolicy.yaml
+  - ../tipsbank-contas/ingress.yaml
+  - ../tipsbank-contas/ingress-admin.yaml
+  - ../tipsbank-contas/secret-basic-auth.yaml
+  - ../tipsbank-contas/networkpolicy.yaml
+  - ../tipsbank-transacoes/ingress.yaml
+  - ../tipsbank-transacoes/ingress-canary.yaml
+  - ../tipsbank-transacoes/networkpolicy.yaml
+  - ../tipsbank-auditoria/ingress.yaml
+  - ../tipsbank-auditoria/networkpolicy.yaml
+  # Específicos do EKS
+  - storageclass-gp3.yaml
+  - networkpolicy-metadata.yaml
+
+patches:
+  # PostgreSQL: troca local-path por gp3 no EKS
+  - target:
+      kind: StatefulSet
+      name: postgres
+    patch: |-
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: gp3
+  # Ingress: troca ClusterIssuer de selfsigned para letsencrypt no EKS
+  - target:
+      kind: Ingress
+    patch: |-
+      - op: replace
+        path: /metadata/annotations/cert-manager.io~1cluster-issuer
+        value: letsencrypt-prod

@@ -1,0 +1,34 @@
+# Ingress principal para api-transacoes — host api.tipsbank.local, path /transacoes/*
+# Affinity Cookie: transferências da mesma sessão vão para o mesmo pod (consistência de sessão)
+# Rewrite: /transacoes/transferencias → /transferencias
+#          /transacoes/health/live    → /health/live
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-transacoes
+  namespace: tipsbank-transacoes
+  annotations:
+    cert-manager.io/cluster-issuer: tipsbank-ca-issuer
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/affinity: cookie
+    nginx.ingress.kubernetes.io/session-cookie-name: TIPSBANK_SESSION
+    nginx.ingress.kubernetes.io/session-cookie-expires: "172800"
+    nginx.ingress.kubernetes.io/session-cookie-max-age: "172800"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - api.tipsbank.local
+    secretName: tipsbank-api-tls
+  rules:
+  - host: api.tipsbank.local
+    http:
+      paths:
+      - path: /transacoes(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: api-transacoes
+            port:
+              number: 8080

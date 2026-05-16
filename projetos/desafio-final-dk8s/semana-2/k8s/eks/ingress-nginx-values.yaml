@@ -1,0 +1,59 @@
+# Helm values para Ingress Nginx Controller no EKS
+# Provisionamento via NLB (Network Load Balancer) da AWS
+#
+# Instalar:
+#   helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+#   helm repo update
+#   helm install ingress-nginx ingress-nginx/ingress-nginx \
+#     -n ingress-nginx --create-namespace \
+#     -f k8s/eks/ingress-nginx-values.yaml
+#
+# Após instalar, pegue o DNS do NLB:
+#   kubectl get svc -n ingress-nginx ingress-nginx-controller \
+#     -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+#
+# Adicione ao /etc/hosts local (ou configure DNS):
+#   <DNS-DO-NLB> app.tipsbank.local api.tipsbank.local
+
+controller:
+  service:
+    type: LoadBalancer
+    annotations:
+      # Usa NLB em vez de CLB (recomendado para EKS)
+      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+      service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+      # Cross-zone para balancear entre AZs
+      service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+
+  # Habilita métricas Prometheus (necessário para semana 3)
+  metrics:
+    enabled: true
+    serviceMonitor:
+      enabled: false   # habilitar na semana 3 com kube-prometheus-stack
+
+  # Configmap global do nginx — usado por todos os Ingress do cluster
+  config:
+    use-forwarded-headers: "true"
+    compute-full-forwarded-for: "true"
+    # Garante que cabeçalho X-Real-IP seja o IP do cliente original (atrás do NLB)
+    proxy-real-ip-cidr: "0.0.0.0/0"
+
+  # Replica o controller em AZs distintas
+  replicaCount: 2
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          topologyKey: topology.kubernetes.io/zone
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: ingress-nginx
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi

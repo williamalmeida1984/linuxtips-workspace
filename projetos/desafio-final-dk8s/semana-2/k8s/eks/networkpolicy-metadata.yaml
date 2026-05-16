@@ -1,0 +1,22 @@
+# Bloqueia acesso ao endpoint de metadados da AWS (169.254.169.254) em todos
+# os namespaces tipsbank-*. Essencial no EKS para impedir que pods obtenham
+# credenciais do instance profile do node.
+#
+# Aplicar:
+#   for ns in tipsbank-contas tipsbank-transacoes tipsbank-auditoria tipsbank-web; do
+#     kubectl --context eks-tipsbank apply -n $ns -f k8s/eks/networkpolicy-metadata.yaml
+#   done
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-aws-metadata
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 169.254.169.254/32

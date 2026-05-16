@@ -1,0 +1,38 @@
+# Ingress com Basic Auth para a rota admin da API de contas.
+# Teste:
+#   curl -k https://api.tipsbank.local/contas/admin/contas          → 401
+#   curl -k -u admin:tipsbank https://api.tipsbank.local/contas/admin/contas → 200
+#
+# Gere o Secret antes de aplicar:
+#   htpasswd -nb admin tipsbank | base64   # e cole em secret-basic-auth.yaml
+#   kubectl apply -f secret-basic-auth.yaml -n tipsbank-contas
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-contas-admin
+  namespace: tipsbank-contas
+  annotations:
+    cert-manager.io/cluster-issuer: tipsbank-ca-issuer
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: "TipsBank Admin - credentials required"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - api.tipsbank.local
+    secretName: tipsbank-api-tls
+  rules:
+  - host: api.tipsbank.local
+    http:
+      paths:
+      # /contas/admin/contas → /contas (lista todas as contas, protegido)
+      - path: /contas/admin(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: api-contas
+            port:
+              number: 8080

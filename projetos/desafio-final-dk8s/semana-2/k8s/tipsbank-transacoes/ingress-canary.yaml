@@ -1,0 +1,43 @@
+# Ingress Canary — 10% do tráfego de /transacoes/* vai para api-transacoes-v2
+# Referencia o mesmo host que o Ingress principal (ingress.yaml)
+# O Ingress Nginx faz o split automaticamente com base no canary-weight.
+#
+# Teste com 1000 requests:
+#   for i in $(seq 1 1000); do
+#     curl -sk https://api.tipsbank.local/transacoes/health/live | jq -r .version
+#   done | sort | uniq -c
+#
+# Resultado esperado: ~900 × v1, ~100 × v2
+#
+# Canary por header (extra — útil para QA):
+#   curl -sk -H "X-Canary: true" https://api.tipsbank.local/transacoes/health/live
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-transacoes-canary
+  namespace: tipsbank-transacoes
+  annotations:
+    cert-manager.io/cluster-issuer: tipsbank-ca-issuer
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "10"
+    nginx.ingress.kubernetes.io/canary-by-header: "X-Canary"
+    nginx.ingress.kubernetes.io/canary-by-header-value: "true"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - api.tipsbank.local
+    secretName: tipsbank-api-tls
+  rules:
+  - host: api.tipsbank.local
+    http:
+      paths:
+      - path: /transacoes(/|$)(.*)
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: api-transacoes-v2
+            port:
+              number: 8080

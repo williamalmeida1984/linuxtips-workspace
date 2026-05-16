@@ -1,0 +1,118 @@
+# NetworkPolicy zero-trust para o namespace tipsbank-contas
+
+# 1. Default deny all
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: tipsbank-contas
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+# 2. Permite ingress do controller Nginx → api-contas
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-controller
+  namespace: tipsbank-contas
+spec:
+  podSelector:
+    matchLabels:
+      app: api-contas
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+---
+# 3. Permite ingress de api-transacoes (chama api-contas para débito/crédito)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-transacoes
+  namespace: tipsbank-contas
+spec:
+  podSelector:
+    matchLabels:
+      app: api-contas
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: tipsbank-transacoes
+    ports:
+    - protocol: TCP
+      port: 8080
+---
+# 4. Permite ingress de tipsbank-web (proxy reverso do nginx)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-web
+  namespace: tipsbank-contas
+spec:
+  podSelector:
+    matchLabels:
+      app: api-contas
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: tipsbank-web
+    ports:
+    - protocol: TCP
+      port: 8080
+---
+# 5. Egress: DNS (CoreDNS no kube-system)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-dns
+  namespace: tipsbank-contas
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+---
+# 6. Egress: api-contas → postgres (mesmo namespace, porta 5432)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-postgres
+  namespace: tipsbank-contas
+spec:
+  podSelector:
+    matchLabels:
+      app: api-contas
+  policyTypes:
+  - Egress
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: postgres
+    ports:
+    - protocol: TCP
+      port: 5432
